@@ -142,7 +142,8 @@ const queryParams = reactive({
 const queryFormRef = ref() // 搜索的表单
 const deptList = ref<Tree[]>([]) // 部门树形结构
 const userList = ref<UserApi.UserVO[]>([]) // 全量用户清单
-const statusTypeList = ref<BusinessStatusApi.BusinessStatusTypeVO[]>([]) // 商机状态组
+type SavedBusinessStatusType = BusinessStatusApi.BusinessStatusTypeVO & { id: number }
+const statusTypeList = ref<SavedBusinessStatusType[]>([]) // 仅已保存的商机状态组可作为筛选项
 
 /** 根据选择的部门筛选员工清单 */
 const userListByDeptId = computed(() =>
@@ -192,7 +193,10 @@ onMounted(async () => {
   ])
   deptList.value = handleTree(deptSimpleList)
   userList.value = handleTree(userSimpleList)
-  statusTypeList.value = businessStatusTypeList
+  statusTypeList.value = businessStatusTypeList.filter(
+    (item: BusinessStatusApi.BusinessStatusTypeVO): item is SavedBusinessStatusType =>
+      typeof item.id === 'number'
+  )
   queryParams.statusTypeId = statusTypeList.value[0]?.id
   handleQuery()
 })

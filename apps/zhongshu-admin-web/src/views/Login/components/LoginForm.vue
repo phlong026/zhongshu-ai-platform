@@ -148,6 +148,7 @@ import * as authUtil from '@/utils/auth'
 import { usePermissionStore } from '@/store/modules/permission'
 import * as LoginApi from '@/api/login'
 import { LoginStateEnum, useFormValid, useLoginState } from './useLogin'
+import { runLoginAttempt } from './loginAttempt'
 
 defineOptions({ name: 'LoginForm' })
 
@@ -235,16 +236,15 @@ const getTenantByWebsite = async () => {
     }
   }
 }
-const loading = ref() // ElLoading.service 返回的实例
+const loading = ref<ReturnType<typeof ElLoading.service>>()
 // 登录
 const handleLogin = async (params: any) => {
-  loginLoading.value = true
-  try {
-    await getTenantId()
-    const data = await validForm()
+  await runLoginAttempt(loginLoading, loading, async () => {
+    const data = await validForm().catch(() => false)
     if (!data) {
       return
     }
+    await getTenantId()
     const loginDataLoginForm = { ...loginData.loginForm }
     loginDataLoginForm.captchaVerification = params.captchaVerification
     const res = await LoginApi.login(loginDataLoginForm)
@@ -271,10 +271,7 @@ const handleLogin = async (params: any) => {
     } else {
       await push({ path: redirect.value || permissionStore.addRouters[0].path })
     }
-  } finally {
-    loginLoading.value = false
-    loading.value.close()
-  }
+  })
 }
 
 // 社交登录
