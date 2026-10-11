@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       verify_mini_build:
-        description: 'Run Mini dependency/build gate only after its separate approval is restored'
+        description: 'Also run the Mini dependency/type/H5/WeChat build gate in a manual run'
         required: false
         type: boolean
         default: false
@@ -26,7 +26,10 @@ jobs:
           node-version: '24'
       - run: node --test scripts/*.test.mjs scripts/test-miniapp-auth.mjs
       - run: node scripts/verify-foundation.mjs
-      - run: git diff --check
+      - name: Check committed review diff for whitespace errors
+        env:
+          DIFF_BASE_SHA: ${{ github.event.pull_request.base.sha || '000e1dfb77d0b46f58a4a8993c4e4011a90a699d' }}
+        run: git diff --check "$DIFF_BASE_SHA" HEAD
 
   backend-postgres:
     runs-on: ubuntu-latest
@@ -137,9 +140,9 @@ jobs:
       - run: pnpm build:prod
 
   miniapp:
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.verify_mini_build }}
-    # Local dependency installation was cancelled and remains untested. This is
-    # a future CI gate, not evidence that Mini type/build acceptance has passed.
+    if: ${{ github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.verify_mini_build) }}
+    # Full PR gates are now authorized. The cancelled local install is not retried.
+    # CI execution, not this definition, determines Mini type/build acceptance.
     runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
