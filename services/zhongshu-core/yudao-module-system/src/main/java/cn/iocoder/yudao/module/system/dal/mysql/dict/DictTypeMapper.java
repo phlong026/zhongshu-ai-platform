@@ -31,7 +31,7 @@ public interface DictTypeMapper extends BaseMapperX<DictTypeDO> {
         return selectOne(DictTypeDO::getName, name);
     }
 
-    @Update("UPDATE system_dict_type SET deleted = 1, deleted_time = #{deletedTime} WHERE id = #{id}")
+    @Update("UPDATE system_dict_type SET deleted = TRUE, deleted_time = #{deletedTime} WHERE id = #{id}")
     void updateToDelete(@Param("id") Long id, @Param("deletedTime") LocalDateTime deletedTime);
 
 }
