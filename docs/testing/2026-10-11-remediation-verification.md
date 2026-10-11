@@ -35,4 +35,10 @@
 - 真实浏览器被环境socket权限/网络隔离阻碍，已经停止该路径，没有关闭sandbox或修改网络安全配置。
 - `scripts/test-admin-ui.mjs` 是可复现的真实浏览器验收脚本，包含表单拒绝、登录失败重试、真实登录、刷新和退出/取消退出等。仅允许隔离loopback环境与一次性账号；尚未执行，不能提供“已进入后台”的截图。
 - Mini完整依赖安装曾被取消，没有重试，类型及H5/微信构建未验收。用户最新要求完整PR门禁，现已配置在pull_request正常执行类型/H5/微信构建；workflow_dispatch仍可通过verify_mini_build明确选择。此为新的正常CI验收，不重试已取消的云本地安装；实际CI完成前仍不声称通过。
-- 根CI仅PR和手动触发，不随每个检查点push执行。CI定义检查不等于远程CI通过；当前未开PR、未合并、未部署。
+- 根CI仅PR和手动触发，不随每个检查点push执行。CI定义检查不等于远程CI通过；已建立草稿PR #2，未合并、未部署。
+
+## 首次远程CI
+
+[PR #2 首次运行](https://github.com/phlong026/zhongshu-ai-platform/actions/runs/38143201529)检验head `9e61b90d92cc3f34e27f8f1631bda7894ae28700`与测试merge `365f524a87b880bb70bcfd268160efef937070f6`。治理、backend-postgres完整单测/真PG/API与Web job均成功；Mini官方frozen安装成功，type-check因两处`_LocationUrl`未定义而失败。此结果不等于H5/微信构建通过。
+
+精确生成路由类型的插件已配置，问题是type-check排在首次Vite构建之前。CI改为实际H5构建→声明文件存在检查→完整type-check→微信构建；新工作流顺序用轻量回归验证，最终是否修复以新CI为准。本地取消的Mini安装不重试。

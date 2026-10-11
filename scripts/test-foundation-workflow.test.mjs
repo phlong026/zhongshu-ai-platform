@@ -37,3 +37,16 @@ test('whitespace gate checks committed changes against an explicit base', () => 
   assert.match(workflow, /run: git diff --check "\$DIFF_BASE_SHA" HEAD/)
   assert.doesNotMatch(workflow, /^\s+- run: git diff --check$/m)
 })
+
+
+test('Mini generates real route declarations before its complete type check', () => {
+  const mini = workflow.slice(workflow.indexOf('  miniapp:'))
+  const steps = ['pnpm init-baseFiles', 'pnpm build:h5', 'test -s src/types/uni-pages.d.ts', 'pnpm type-check', 'pnpm build:mp-weixin']
+  let previous = -1
+  for (const step of steps) {
+    const index = mini.indexOf(step)
+    assert.ok(index > previous, `Required Mini gate is missing or out of order: ${step}`)
+    previous = index
+  }
+  assert.doesNotMatch(mini, /continue-on-error|type-check.*\|\|/)
+})

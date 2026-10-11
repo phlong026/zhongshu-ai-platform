@@ -158,6 +158,9 @@ jobs:
           version: '10.10.0'
       - run: pnpm install --frozen-lockfile --ignore-scripts --registry=https://registry.npmjs.org
       - run: pnpm init-baseFiles
+      - name: Build H5 and generate precise page-route declarations
+        run: |
+          pnpm build:h5
+          test -s src/types/uni-pages.d.ts
       - run: pnpm type-check
-      - run: pnpm build:h5
       - run: pnpm build:mp-weixin
