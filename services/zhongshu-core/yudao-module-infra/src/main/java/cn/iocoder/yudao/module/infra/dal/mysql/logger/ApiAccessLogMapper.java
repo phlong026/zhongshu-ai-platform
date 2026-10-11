@@ -39,7 +39,21 @@ public interface ApiAccessLogMapper extends BaseMapperX<ApiAccessLogDO> {
      * @param limit      删除条数，防止一次删除太多
      * @return 删除条数
      */
-    @Delete("DELETE FROM infra_api_access_log WHERE create_time < #{createTime} LIMIT #{limit}")
+    // LIMIT NULL means unbounded in PostgreSQL; invalid cleanup inputs must be a no-op.
+    @Delete("""
+            <script>
+            DELETE FROM infra_api_access_log WHERE id IN (
+                SELECT id FROM infra_api_access_log
+                <choose>
+                    <when test="createTime != null and limit != null and limit > 0">
+                        WHERE create_time &lt; #{createTime}
+                        ORDER BY create_time, id LIMIT #{limit}
+                    </when>
+                    <otherwise>WHERE 1 = 0</otherwise>
+                </choose>
+            )
+            </script>
+            """)
     Integer deleteByCreateTimeLt(@Param("createTime") LocalDateTime createTime, @Param("limit") Integer limit);
 
 }

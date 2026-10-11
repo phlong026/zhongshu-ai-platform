@@ -30,6 +30,20 @@ public interface OAuth2RefreshTokenMapper extends BaseMapperX<OAuth2RefreshToken
      * @param limit       删除条数，防止一次删除太多
      * @return 删除条数
      */
-    @Delete("DELETE FROM system_oauth2_refresh_token WHERE expires_time < #{expiresTime} LIMIT #{limit}")
+    // LIMIT NULL means unbounded in PostgreSQL; invalid cleanup inputs must be a no-op.
+    @Delete("""
+            <script>
+            DELETE FROM system_oauth2_refresh_token WHERE id IN (
+                SELECT id FROM system_oauth2_refresh_token
+                <choose>
+                    <when test="expiresTime != null and limit != null and limit > 0">
+                        WHERE expires_time &lt; #{expiresTime}
+                        ORDER BY expires_time, id LIMIT #{limit}
+                    </when>
+                    <otherwise>WHERE 1 = 0</otherwise>
+                </choose>
+            )
+            </script>
+            """)
     Integer deleteByExpiresTimeLt(@Param("expiresTime") LocalDateTime expiresTime, @Param("limit") Integer limit);
 }

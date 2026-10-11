@@ -19,6 +19,7 @@ import cn.iocoder.yudao.framework.common.util.servlet.ServletUtils;
 import cn.iocoder.yudao.framework.web.config.WebProperties;
 import cn.iocoder.yudao.framework.web.core.filter.ApiRequestFilter;
 import cn.iocoder.yudao.framework.web.core.util.WebFrameworkUtils;
+import cn.iocoder.yudao.framework.web.core.util.SensitiveRequestLogUtils;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -93,7 +94,12 @@ public class ApiAccessLogFilter extends ApiRequestFilter {
             }
             apiAccessLogApi.createApiAccessLogAsync(accessLog);
         } catch (Throwable th) {
-            log.error("[createApiAccessLog][url({}) log({}) 发生异常]", request.getRequestURI(), toJsonString(accessLog), th);
+            if (SensitiveRequestLogUtils.isSensitiveAuthenticationRequest(request)) {
+                // Neither the DTO nor the persistence exception is safe to print.
+                log.error("[createApiAccessLog][authentication log persistence failed; type={}]", th.getClass().getName());
+            } else {
+                log.error("[createApiAccessLog][url({}) log({}) 发生异常]", request.getRequestURI(), toJsonString(accessLog), th);
+            }
         }
     }
 
@@ -112,13 +118,16 @@ public class ApiAccessLogFilter extends ApiRequestFilter {
         // 处理用户信息
         accessLog.setUserId(WebFrameworkUtils.getLoginUserId(request))
                 .setUserType(WebFrameworkUtils.getLoginUserType(request));
+        // Authentication payloads and exception messages may contain credentials.
+        boolean sensitiveAuthentication = SensitiveRequestLogUtils.isSensitiveAuthenticationRequest(request);
         // 设置访问结果
         CommonResult<?> result = WebFrameworkUtils.getCommonResult(request);
         if (result != null) {
-            accessLog.setResultCode(result.getCode()).setResultMsg(result.getMsg());
+            accessLog.setResultCode(result.getCode()).setResultMsg(sensitiveAuthentication
+                    ? SensitiveRequestLogUtils.OMITTED : result.getMsg());
         } else if (ex != null) {
             accessLog.setResultCode(GlobalErrorCodeConstants.INTERNAL_SERVER_ERROR.getCode())
-                    .setResultMsg(ExceptionUtil.getRootCauseMessage(ex));
+                    .setResultMsg(sensitiveAuthentication ? SensitiveRequestLogUtils.OMITTED : ExceptionUtil.getRootCauseMessage(ex));
         } else {
             accessLog.setResultCode(GlobalErrorCodeConstants.SUCCESS.getCode()).setResultMsg("");
         }
@@ -128,14 +137,14 @@ public class ApiAccessLogFilter extends ApiRequestFilter {
                 .setUserAgent(ServletUtils.getUserAgent(request)).setUserIp(ServletUtils.getClientIP(request));
         String[] sanitizeKeys = accessLogAnnotation != null ? accessLogAnnotation.sanitizeKeys() : null;
         Boolean requestEnable = accessLogAnnotation != null ? accessLogAnnotation.requestEnable() : Boolean.TRUE;
-        if (!BooleanUtil.isFalse(requestEnable)) { // 默认记录，所以判断 !false
+        if (!sensitiveAuthentication && !BooleanUtil.isFalse(requestEnable)) { // Credentials are never audit payloads.
             Map<String, Object> requestParams = MapUtil.<String, Object>builder()
                     .put("query", sanitizeMap(queryString, sanitizeKeys))
                     .put("body", sanitizeJson(requestBody, sanitizeKeys)).build();
             accessLog.setRequestParams(toJsonString(requestParams));
         }
         Boolean responseEnable = accessLogAnnotation != null ? accessLogAnnotation.responseEnable() : Boolean.FALSE;
-        if (BooleanUtil.isTrue(responseEnable)) { // 默认不记录，默认强制要求 true
+        if (!sensitiveAuthentication && BooleanUtil.isTrue(responseEnable)) { // Never retain authentication responses.
             accessLog.setResponseBody(sanitizeJson(result, sanitizeKeys));
         }
         // 持续时间
@@ -202,9 +211,9 @@ public class ApiAccessLogFilter extends ApiRequestFilter {
             sanitizeJson(rootNode, sanitizeKeys);
             return JsonUtils.toJsonString(rootNode);
         } catch (Exception e) {
-            // 脱敏失败的情况下，直接忽略异常，避免影响用户请求
-            log.error("[sanitizeJson][脱敏({}) 发生异常]", jsonString, e);
-            return jsonString;
+            // Fail closed: parser exceptions can contain credential-bearing input.
+            log.warn("[sanitizeJson][Payload omitted because sanitization failed]");
+            return null;
         }
     }
 
@@ -218,9 +227,9 @@ public class ApiAccessLogFilter extends ApiRequestFilter {
             sanitizeJson(rootNode.get("data"), sanitizeKeys); // 只处理 data 字段，不处理 code、msg 字段，避免错误被脱敏掉
             return JsonUtils.toJsonString(rootNode);
         } catch (Exception e) {
-            // 脱敏失败的情况下，直接忽略异常，避免影响用户请求
-            log.error("[sanitizeJson][脱敏({}) 发生异常]", jsonString, e);
-            return jsonString;
+            // Fail closed: parser exceptions can contain credential-bearing input.
+            log.warn("[sanitizeJson][Payload omitted because sanitization failed]");
+            return null;
         }
     }
 

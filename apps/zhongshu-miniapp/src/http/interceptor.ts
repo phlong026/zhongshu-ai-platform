@@ -3,17 +3,12 @@ import type { CustomRequestOptions } from '@/http/types'
 import { useTokenStore, useUserStore } from '@/store'
 import { getEnvBaseUrl } from '@/utils'
 import { ApiEncrypt } from '@/utils/encrypt'
+import { buildRequestHeaders } from './authHeaders'
 import { stringifyQuery } from './tools/queryString'
 
 // 请求基准地址
 const baseUrl = getEnvBaseUrl()
 const tenantEnable = import.meta.env.VITE_APP_TENANT_ENABLE
-
-const whiteList: string[] = [
-  '/login',
-  '/refresh-token',
-  '/system/tenant/get-id-by-name',
-] // 白名单列表，不需要传递 token 字段
 
 // 拦截器配置
 const httpInterceptor = {
@@ -48,38 +43,22 @@ const httpInterceptor = {
     }
     // 1. 请求超时
     options.timeout = 60000 // 60s
-    // 2. （可选）添加小程序端请求头标识
-    options.header = {
-      ...options.header,
-    }
-    // 3. 添加 token 请求头标识
+    // 2. 统一处理 token 和租户头，白名单及显式禁用不携带会话凭据。
     const tokenStore = useTokenStore()
     const token = tokenStore.updateNowTime().validToken
-    let isToken = (options!.header || {}).isToken === false
+    const tenantEnabled = tenantEnable === 'true'
+    const userStore = tenantEnabled ? useUserStore() : undefined
+    options.header = buildRequestHeaders({
+      url: options.url,
+      header: options.header,
+      token,
+      tenantEnabled,
+      tenantId: userStore?.tenantId,
+      visitTenantId: userStore?.visitTenantId,
+      apiBaseUrls: [baseUrl, import.meta.env.VITE_APP_PROXY_PREFIX].filter(Boolean),
+    })
 
-    for (const v of whiteList) {
-      if (options.url && options.url.includes(v)) {
-        isToken = false
-        break
-      }
-    }
-    if (!isToken && token) {
-      options.header.Authorization = `Bearer ${token}`
-    }
-
-    // 4. 添加租户标识
-    if (tenantEnable && tenantEnable === 'true') {
-      const tenantId = useUserStore().tenantId
-      if (tenantId) {
-        options.header['tenant-id'] = tenantId
-      }
-      const visitTenantId = useUserStore().visitTenantId
-      if (token && visitTenantId) {
-        options.header['visit-tenant-id'] = visitTenantId
-      }
-    }
-
-    // 5. add by panda：是否 API 加密
+    // 3. add by panda：是否 API 加密
     if (options.isEncrypt) {
       try {
         // 加密请求数据

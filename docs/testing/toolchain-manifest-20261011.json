@@ -1,0 +1,96 @@
+{
+  "verified_at_utc": "2026-10-11T12:45:30.137743+00:00",
+  "status": "stage2-ready-and-smoke-verified",
+  "scope": "Rebuilt fresh after executor reset. No previous verification reused. Official archives only; no product test claim.",
+  "java": {
+    "version": "17.0.20.1+1",
+    "url": "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.20.1%2B1/OpenJDK17U-jdk_x64_linux_hotspot_17.0.20.1_1.tar.gz",
+    "checksum_url": "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.20.1%2B1/OpenJDK17U-jdk_x64_linux_hotspot_17.0.20.1_1.tar.gz.sha256.txt",
+    "sha256": "3808d1d15e3ec6bd5b84057fb5d84c33d8a1536a258146bcea2e603fc726e08e",
+    "validation": "Fresh archive SHA256 matches freshly downloaded official SHA256 and prior pinned hash."
+  },
+  "maven": {
+    "version": "3.9.16",
+    "url": "https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.9.16/apache-maven-3.9.16-bin.tar.gz",
+    "checksum_url": "https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.9.16/apache-maven-3.9.16-bin.tar.gz.sha512",
+    "sha512": "831a8591fe20c8243b1dbe7d71e3244f31d1665b0804b2e825e38cbbe5ce0cafb8338851f90780735568773e0a6cd07bbec107cda0b896b008b861075358b6f6",
+    "validation": "Fresh archive SHA512 matches freshly downloaded official SHA512."
+  },
+  "debian": {
+    "index_url": "https://deb.debian.org/debian/dists/trixie/main/binary-amd64/Packages.xz",
+    "index_sha256": "7778d3e3f303b7ddb8ce0fe7c8d57473a076c6bf2e8f241f75421d2396352498",
+    "release_url": "https://deb.debian.org/debian/dists/trixie/InRelease",
+    "release_sha256": "0584fba32e13e0ab8285fb16c27adea1ec03a73669c18702821094fd6ca86675",
+    "validation": "Fresh InRelease signatures verified with preinstalled Debian archive keyring; fresh index SHA256 matches InRelease; each fresh .deb SHA256 matches index. Prior package versions pinned exactly.",
+    "packages": [
+      {
+        "package": "postgresql-17",
+        "version": "17.11-0+deb13u1",
+        "url": "https://deb.debian.org/debian/pool/main/p/postgresql-17/postgresql-17_17.11-0+deb13u1_amd64.deb",
+        "sha256": "d2ce1ddffafa783f9acda4c92c86fc21e8288bff3782d739294f14fa797d7886"
+      },
+      {
+        "package": "postgresql-client-17",
+        "version": "17.11-0+deb13u1",
+        "url": "https://deb.debian.org/debian/pool/main/p/postgresql-17/postgresql-client-17_17.11-0+deb13u1_amd64.deb",
+        "sha256": "9d8558f8dd57c8e92e218a20698383575d53742ca3f9e7c2b7fe5f246d5216ae"
+      },
+      {
+        "package": "redis-server",
+        "version": "5:8.0.2-3+deb13u2",
+        "url": "https://deb.debian.org/debian/pool/main/r/redis/redis-server_8.0.2-3+deb13u2_amd64.deb",
+        "sha256": "0edc72458f66c68f2d4ccd0c9959a85a81f4ec7de410a28861cde4a2059f245c"
+      },
+      {
+        "package": "redis-tools",
+        "version": "5:8.0.2-3+deb13u2",
+        "url": "https://deb.debian.org/debian/pool/main/r/redis/redis-tools_8.0.2-3+deb13u2_amd64.deb",
+        "sha256": "9d7cbe20963c8bfc00af3e8a3a33451bb815f7501b12e55583f9e942a767859b"
+      },
+      {
+        "package": "libpq5",
+        "version": "17.11-0+deb13u1",
+        "url": "https://deb.debian.org/debian/pool/main/p/postgresql-17/libpq5_17.11-0+deb13u1_amd64.deb",
+        "sha256": "20a4c9ef58b4baf90deda67cfb2cc062871c062830dddc234d28f5ac7931b86b"
+      },
+      {
+        "package": "libicu76",
+        "version": "76.1-4",
+        "url": "https://deb.debian.org/debian/pool/main/i/icu/libicu76_76.1-4_amd64.deb",
+        "sha256": "c1bf762996de9ecba9b9d871e4928a8090f023a3e9e7fa3240b3d90f892a01dc"
+      },
+      {
+        "package": "libldap2",
+        "version": "2.6.10+dfsg-1",
+        "url": "https://deb.debian.org/debian/pool/main/o/openldap/libldap2_2.6.10+dfsg-1_amd64.deb",
+        "sha256": "60069e4a550ca890113fa89d3001417781b18e146ec5d637d31e368dec9909bd"
+      },
+      {
+        "package": "libllvm19",
+        "version": "1:19.1.7-3+b1",
+        "url": "https://deb.debian.org/debian/pool/main/l/llvm-toolchain-19/libllvm19_19.1.7-3+b1_amd64.deb",
+        "sha256": "db0d614d61345ca710fb73e75105f1ec6e38898fa7b3aa99fa7eb7d8b0a11d57"
+      },
+      {
+        "package": "liblzf1",
+        "version": "3.6-4+b3",
+        "url": "https://deb.debian.org/debian/pool/main/libl/liblzf/liblzf1_3.6-4+b3_amd64.deb",
+        "sha256": "1f7677f1098f9f643806d64a2ed54d14bcd5954e71b63c2aa1e9bb7bcd84d783"
+      },
+      {
+        "package": "libjemalloc2",
+        "version": "5.3.0-3",
+        "url": "https://deb.debian.org/debian/pool/main/j/jemalloc/libjemalloc2_5.3.0-3_amd64.deb",
+        "sha256": "e7d64919e620e8ea46960104efe1e9c977d751e5b610a5d89b0b51aeae9530d7"
+      }
+    ]
+  },
+  "service_modes": {
+    "pg-only": "PostgreSQL15432 only; no Redis process/environment; mock16379 free",
+    "api": "PostgreSQL15432 plus authenticated Redis26379; mock16379 free",
+    "generic_redis_environment": "Never exported",
+    "roles": "Migration and runtime non-superuser/NOCREATEDB/NOCREATEROLE; runtime public CREATE false; pg_default_acl empty",
+    "credential_files": "integration.env, api.env, pg-admin.env, redis.conf: mode0600; excluded from evidence bundle",
+    "result_scope": "Tool/service smoke checks only; no product acceptance claim"
+  }
+}

@@ -1,0 +1,166 @@
+name: Foundation gates
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      verify_mini_build:
+        description: 'Also run the Mini dependency/type/H5/WeChat build gate in a manual run'
+        required: false
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: foundation-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  governance-and-auth:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node --test scripts/*.test.mjs scripts/test-miniapp-auth.mjs
+      - run: node scripts/verify-foundation.mjs
+      - name: Check committed review diff for whitespace errors
+        env:
+          DIFF_BASE_SHA: ${{ github.event.pull_request.base.sha || '000e1dfb77d0b46f58a4a8993c4e4011a90a699d' }}
+        run: git diff --check "$DIFF_BASE_SHA" HEAD
+
+  backend-postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: services/zhongshu-core
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '15432'
+      PGDATABASE: zhongshu_ci_test
+      ZS_PG_URL: jdbc:postgresql://127.0.0.1:15432/zhongshu_ci_test
+      ZS_PG_USERNAME: zhongshu_ci_runtime
+      ZS_PG_PASSWORD: ci-runtime-ephemeral-only
+      ZS_PG_MIGRATION_USERNAME: zhongshu_ci
+      ZS_PG_MIGRATION_PASSWORD: ci-ephemeral-only
+      ZS_REDIS_HOST: 127.0.0.1
+      ZS_REDIS_PORT: '16380'
+      ZS_REDIS_PASSWORD: ci-redis-ephemeral-only
+      ZS_DEV_SEED_CONFIRM: disposable-local-test-only
+      ZS_DEV_REDIS_CONFIRM: dedicated-disposable-test-instance
+      TEST_PG_URL: jdbc:postgresql://127.0.0.1:15432/zhongshu_ci_test
+      TEST_PG_USERNAME: zhongshu_ci
+      TEST_PG_PASSWORD: ci-ephemeral-only
+      TEST_PG_RUNTIME_USERNAME: zhongshu_ci_runtime
+      TEST_PG_RUNTIME_PASSWORD: ci-runtime-ephemeral-only
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Full backend unit suite before any external Redis starts
+        run: mvn --batch-mode --no-transfer-progress -pl yudao-server -am test
+      - name: Install the official distribution PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client unzip
+      - name: Start dedicated loopback PostgreSQL 17 and Redis 8
+        # Host networking plus explicit loopback binding preserves the seed's
+        # server-side inet_server_addr guard; no permissive bridge-IP exception.
+        # Existing unit tests may use mock Redis on 16379. API Redis uses 16380.
+        run: |
+          docker run --detach --rm --name foundation-postgres --network host \
+            --env POSTGRES_DB=zhongshu_ci_test --env POSTGRES_USER=zhongshu_ci \
+            --env POSTGRES_PASSWORD=ci-ephemeral-only \
+            postgres:17 -c listen_addresses=127.0.0.1 -c port=15432
+          docker run --detach --rm --name foundation-redis --network host \
+            redis:8 redis-server --bind 127.0.0.1 --port 16380 \
+            --requirepass ci-redis-ephemeral-only --save '' --appendonly no
+          ready=0
+          for attempt in $(seq 1 60); do
+            if docker exec foundation-postgres pg_isready -h 127.0.0.1 -p 15432 -U zhongshu_ci -d zhongshu_ci_test && \
+               docker exec --env REDISCLI_AUTH=ci-redis-ephemeral-only foundation-redis redis-cli -h 127.0.0.1 -p 16380 ping | grep -qx PONG; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          test "$ready" = 1
+      - name: Provision the separate low-privilege runtime role
+        run: |
+          docker exec foundation-postgres psql -U zhongshu_ci -p 15432 -d zhongshu_ci_test -v ON_ERROR_STOP=1 \
+            -c "CREATE ROLE zhongshu_ci_runtime LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD 'ci-runtime-ephemeral-only';"
+      - name: PostgreSQL-only configuration and migration contracts plus real mapper integration
+        # Do not rerun the full unit suite alongside the real Redis instance.
+        # Surefire selects these contracts; Failsafe runs the postgres-it suite.
+        run: >-
+          mvn --batch-mode --no-transfer-progress -Ppostgres-it -pl yudao-server -am
+          -Dtest=PostgresEnvironmentGuardTest,PostgresMigrationContractTest
+          -Dsurefire.failIfNoSpecifiedTests=false verify
+      - name: Development target and seed guard regressions
+        run: node --test script/postgresql/seed-development.test.mjs script/postgresql/api-smoke-supervisor.test.mjs
+      - name: Real application startup and two-tenant login API smoke
+        run: bash script/postgresql/run-api-smoke.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-test-reports
+          path: |
+            services/zhongshu-core/**/target/surefire-reports/**
+            services/zhongshu-core/**/target/failsafe-reports/**
+            services/zhongshu-core/yudao-server/target/postgres-api-smoke/results.log
+      - name: Remove only this job's disposable services
+        if: always()
+        run: docker rm --force foundation-postgres foundation-redis 2>/dev/null || true
+
+  admin-web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/zhongshu-admin-web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '11.25.0'
+      - run: pnpm install --frozen-lockfile --ignore-scripts --registry=https://registry.npmjs.org
+      - run: pnpm ts:check
+      - run: pnpm build:prod
+
+  miniapp:
+    if: ${{ github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.verify_mini_build) }}
+    # Full PR gates are now authorized. The cancelled local install is not retried.
+    # CI execution, not this definition, determines Mini type/build acceptance.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/zhongshu-miniapp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '10.10.0'
+      - run: pnpm install --frozen-lockfile --ignore-scripts --registry=https://registry.npmjs.org
+      - run: pnpm init-baseFiles
+      - name: Build H5 and generate precise page-route declarations
+        run: |
+          pnpm build:h5
+          test -s src/types/uni-pages.d.ts
+      - run: pnpm type-check
+      - run: pnpm build:mp-weixin

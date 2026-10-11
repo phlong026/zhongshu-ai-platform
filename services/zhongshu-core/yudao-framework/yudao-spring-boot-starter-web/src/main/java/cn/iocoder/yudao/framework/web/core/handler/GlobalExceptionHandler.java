@@ -15,6 +15,7 @@ import cn.iocoder.yudao.framework.common.util.json.JsonUtils;
 import cn.iocoder.yudao.framework.common.util.monitor.TracerUtils;
 import cn.iocoder.yudao.framework.common.util.servlet.ServletUtils;
 import cn.iocoder.yudao.framework.web.core.util.WebFrameworkUtils;
+import cn.iocoder.yudao.framework.web.core.util.SensitiveRequestLogUtils;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.google.common.util.concurrent.UncheckedExecutionException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -127,7 +128,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(value = MissingServletRequestParameterException.class)
     public CommonResult<?> missingServletRequestParameterExceptionHandler(MissingServletRequestParameterException ex) {
-        log.warn("[missingServletRequestParameterExceptionHandler]", ex);
+        logRequestWarning("missingServletRequestParameterExceptionHandler", WebFrameworkUtils.getRequest(), ex);
         return CommonResult.error(BAD_REQUEST.getCode(), String.format("请求参数缺失:%s", ex.getParameterName()));
     }
 
@@ -138,8 +139,8 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public CommonResult<?> methodArgumentTypeMismatchExceptionHandler(MethodArgumentTypeMismatchException ex) {
-        log.warn("[methodArgumentTypeMismatchExceptionHandler]", ex);
-        return CommonResult.error(BAD_REQUEST.getCode(), String.format("请求参数类型错误:%s", ex.getMessage()));
+        log.warn("[methodArgumentTypeMismatchExceptionHandler][Invalid request; values omitted]");
+        return CommonResult.error(BAD_REQUEST.getCode(), String.format("请求参数类型错误:%s", ex.getName()));
     }
 
     /**
@@ -147,7 +148,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public CommonResult<?> methodArgumentNotValidExceptionExceptionHandler(MethodArgumentNotValidException ex) {
-        log.warn("[methodArgumentNotValidExceptionExceptionHandler]", ex);
+        log.warn("[methodArgumentNotValidExceptionExceptionHandler][Invalid request; values omitted]");
         // 获取 errorMessage
         String errorMessage = null;
         FieldError fieldError = ex.getBindingResult().getFieldError();
@@ -172,7 +173,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(BindException.class)
     public CommonResult<?> bindExceptionHandler(BindException ex) {
-        log.warn("[handleBindException]", ex);
+        log.warn("[handleBindException][Invalid request; values omitted]");
         FieldError fieldError = ex.getFieldError();
         assert fieldError != null; // 断言，避免告警
         return CommonResult.error(BAD_REQUEST.getCode(), String.format("请求参数不正确:%s", fieldError.getDefaultMessage()));
@@ -186,15 +187,15 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     @SuppressWarnings("PatternVariableCanBeUsed")
     public CommonResult<?> methodArgumentTypeInvalidFormatExceptionHandler(HttpMessageNotReadableException ex) {
-        log.warn("[methodArgumentTypeInvalidFormatExceptionHandler]", ex);
+        log.warn("[methodArgumentTypeInvalidFormatExceptionHandler][Invalid request; values omitted]");
         if (ex.getCause() instanceof InvalidFormatException) {
-            InvalidFormatException invalidFormatException = (InvalidFormatException) ex.getCause();
-            return CommonResult.error(BAD_REQUEST.getCode(), String.format("请求参数类型错误:%s", invalidFormatException.getValue()));
+            return CommonResult.error(BAD_REQUEST.getCode(), "请求参数类型错误");
         }
         if (StrUtil.startWith(ex.getMessage(), "Required request body is missing")) {
             return CommonResult.error(BAD_REQUEST.getCode(), "请求参数类型错误: request body 缺失");
         }
-        return defaultExceptionHandler(ServletUtils.getRequest(), ex);
+        // Malformed bodies must not enter raw unexpected-error logging.
+        return CommonResult.error(BAD_REQUEST.getCode(), "请求体格式不正确");
     }
 
     /**
@@ -202,7 +203,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(value = ConstraintViolationException.class)
     public CommonResult<?> constraintViolationExceptionHandler(ConstraintViolationException ex) {
-        log.warn("[constraintViolationExceptionHandler]", ex);
+        log.warn("[constraintViolationExceptionHandler][Invalid request; values omitted]");
         ConstraintViolation<?> constraintViolation = ex.getConstraintViolations().iterator().next();
         return CommonResult.error(BAD_REQUEST.getCode(), String.format("请求参数不正确:%s", constraintViolation.getMessage()));
     }
@@ -212,7 +213,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(value = ValidationException.class)
     public CommonResult<?> validationException(ValidationException ex) {
-        log.warn("[constraintViolationExceptionHandler]", ex);
+        log.warn("[constraintViolationExceptionHandler][Invalid request; values omitted]");
         // 无法拼接明细的错误信息，因为 Dubbo Consumer 抛出 ValidationException 异常时，是直接的字符串信息，且人类不可读
         return CommonResult.error(BAD_REQUEST);
     }
@@ -234,7 +235,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(NoHandlerFoundException.class)
     public CommonResult<?> noHandlerFoundExceptionHandler(NoHandlerFoundException ex) {
-        log.warn("[noHandlerFoundExceptionHandler]", ex);
+        logRequestWarning("noHandlerFoundExceptionHandler", WebFrameworkUtils.getRequest(), ex);
         return CommonResult.error(NOT_FOUND.getCode(), String.format("请求地址不存在:%s", ex.getRequestURL()));
     }
 
@@ -243,7 +244,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(NoResourceFoundException.class)
     private CommonResult<?> noResourceFoundExceptionHandler(HttpServletRequest req, NoResourceFoundException ex) {
-        log.warn("[noResourceFoundExceptionHandler]", ex);
+        logRequestWarning("noResourceFoundExceptionHandler", req, ex);
         return CommonResult.error(NOT_FOUND.getCode(), String.format("请求地址不存在:%s", ex.getResourcePath()));
     }
 
@@ -254,7 +255,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public CommonResult<?> httpRequestMethodNotSupportedExceptionHandler(HttpRequestMethodNotSupportedException ex) {
-        log.warn("[httpRequestMethodNotSupportedExceptionHandler]", ex);
+        logRequestWarning("httpRequestMethodNotSupportedExceptionHandler", WebFrameworkUtils.getRequest(), ex);
         return CommonResult.error(METHOD_NOT_ALLOWED.getCode(), String.format("请求方法不正确:%s", ex.getMessage()));
     }
 
@@ -265,7 +266,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
     public CommonResult<?> httpMediaTypeNotSupportedExceptionHandler(HttpMediaTypeNotSupportedException ex) {
-        log.warn("[httpMediaTypeNotSupportedExceptionHandler]", ex);
+        logRequestWarning("httpMediaTypeNotSupportedExceptionHandler", WebFrameworkUtils.getRequest(), ex);
         return CommonResult.error(BAD_REQUEST.getCode(), String.format("请求类型不正确:%s", ex.getMessage()));
     }
 
@@ -276,8 +277,12 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(value = AccessDeniedException.class)
     public CommonResult<?> accessDeniedExceptionHandler(HttpServletRequest req, AccessDeniedException ex) {
-        log.warn("[accessDeniedExceptionHandler][userId({}) 无法访问 url({})]", WebFrameworkUtils.getLoginUserId(req),
-                req.getRequestURL(), ex);
+        if (SensitiveRequestLogUtils.isSensitiveAuthenticationRequest(req)) {
+            logRequestWarning("accessDeniedExceptionHandler", req, ex);
+        } else {
+            log.warn("[accessDeniedExceptionHandler][userId({}) 无法访问 url({})]", WebFrameworkUtils.getLoginUserId(req),
+                    req.getRequestURL(), ex);
+        }
         return CommonResult.error(FORBIDDEN);
     }
 
@@ -339,7 +344,12 @@ public class GlobalExceptionHandler {
         }
 
         // 情况二：处理异常
-        log.error("[defaultExceptionHandler]", ex);
+        if (SensitiveRequestLogUtils.isSensitiveAuthenticationRequest(req)) {
+            log.error("[defaultExceptionHandler][traceId({}) exceptionType({})] {}",
+                    TracerUtils.getTraceId(), ex.getClass().getName(), SensitiveRequestLogUtils.safeStackTrace(ex));
+        } else {
+            log.error("[defaultExceptionHandler]", ex);
+        }
         // 插入异常日志
         createExceptionLog(req, ex);
         // 返回 ERROR CommonResult
@@ -355,22 +365,33 @@ public class GlobalExceptionHandler {
             // 执行插入 errorLog
             apiErrorLogApi.createApiErrorLogAsync(errorLog);
         } catch (Throwable th) {
-            log.error("[createExceptionLog][url({}) log({}) 发生异常]", req.getRequestURI(),  JsonUtils.toJsonString(errorLog), th);
+            if (SensitiveRequestLogUtils.isSensitiveAuthenticationRequest(req)) {
+                // The sink exception can echo SQL values. Never log the DTO or original Throwable.
+                log.error("[createExceptionLog][traceId({}) exceptionType({})] {}",
+                        TracerUtils.getTraceId(), th.getClass().getName(), SensitiveRequestLogUtils.safeStackTrace(th));
+            } else {
+                log.error("[createExceptionLog][url({}) log({}) 发生异常]", req.getRequestURI(), JsonUtils.toJsonString(errorLog), th);
+            }
         }
     }
 
     private void buildExceptionLog(ApiErrorLogCreateReqDTO errorLog, HttpServletRequest request, Throwable e) {
+        boolean sensitive = SensitiveRequestLogUtils.isSensitiveAuthenticationRequest(request);
         // 处理用户信息
         errorLog.setUserId(WebFrameworkUtils.getLoginUserId(request));
         errorLog.setUserType(WebFrameworkUtils.getLoginUserType(request));
         // 设置异常字段
         errorLog.setExceptionName(e.getClass().getName());
-        errorLog.setExceptionMessage(ExceptionUtil.getMessage(e));
-        errorLog.setExceptionRootCauseMessage(ExceptionUtil.getRootCauseMessage(e));
-        errorLog.setExceptionStackTrace(ExceptionUtil.stacktraceToString(e));
+        errorLog.setExceptionMessage(sensitive ? SensitiveRequestLogUtils.OMITTED : ExceptionUtil.getMessage(e));
+        errorLog.setExceptionRootCauseMessage(sensitive ? SensitiveRequestLogUtils.OMITTED : ExceptionUtil.getRootCauseMessage(e));
+        errorLog.setExceptionStackTrace(sensitive ? SensitiveRequestLogUtils.safeStackTrace(e) : ExceptionUtil.stacktraceToString(e));
         StackTraceElement[] stackTraceElements = e.getStackTrace();
-        Assert.notEmpty(stackTraceElements, "异常 stackTraceElements 不能为空");
-        StackTraceElement stackTraceElement = stackTraceElements[0];
+        if (!sensitive) {
+            Assert.notEmpty(stackTraceElements, "异常 stackTraceElements 不能为空");
+        }
+        StackTraceElement stackTraceElement = stackTraceElements.length == 0
+                ? new StackTraceElement(e.getClass().getName(), "unavailable", "unavailable", -1)
+                : stackTraceElements[0];
         errorLog.setExceptionClassName(stackTraceElement.getClassName());
         errorLog.setExceptionFileName(stackTraceElement.getFileName());
         errorLog.setExceptionMethodName(stackTraceElement.getMethodName());
@@ -378,15 +399,24 @@ public class GlobalExceptionHandler {
         // 设置其它字段
         errorLog.setTraceId(TracerUtils.getTraceId());
         errorLog.setApplicationName(applicationName);
-        errorLog.setRequestUrl(request.getRequestURI());
+        errorLog.setRequestUrl(sensitive ? "[authentication endpoint]" : request.getRequestURI());
         Map<String, Object> requestParams = MapUtil.<String, Object>builder()
-                .put("query", ServletUtils.getParamMap(request))
-                .put("body", ServletUtils.getBody(request)).build();
+                .put("query", sensitive ? SensitiveRequestLogUtils.OMITTED : ServletUtils.getParamMap(request))
+                .put("body", sensitive ? SensitiveRequestLogUtils.OMITTED : ServletUtils.getBody(request)).build();
         errorLog.setRequestParams(JsonUtils.toJsonString(requestParams));
         errorLog.setRequestMethod(request.getMethod());
-        errorLog.setUserAgent(ServletUtils.getUserAgent(request));
+        errorLog.setUserAgent(sensitive ? SensitiveRequestLogUtils.OMITTED : ServletUtils.getUserAgent(request));
         errorLog.setUserIp(ServletUtils.getClientIP(request));
         errorLog.setExceptionTime(LocalDateTime.now());
+    }
+
+    private void logRequestWarning(String handler, HttpServletRequest request, Throwable error) {
+        if (SensitiveRequestLogUtils.isSensitiveAuthenticationRequest(request)) {
+            log.warn("[{}][traceId({}) exceptionType({})] {}", handler, TracerUtils.getTraceId(),
+                    error.getClass().getName(), SensitiveRequestLogUtils.safeStackTrace(error));
+        } else {
+            log.warn("[" + handler + "]", error);
+        }
     }
 
     /**

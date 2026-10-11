@@ -1,0 +1,128 @@
+# Standalone product profile. Never combine with upstream local/dev profiles.
+server:
+  port: ${ZS_SERVER_PORT:48080}
+spring:
+  datasource:
+    druid:
+      web-stat-filter:
+        enabled: false
+      stat-view-servlet:
+        enabled: false
+    dynamic:
+      primary: master
+      strict: true
+      druid:
+        initial-size: 1
+        min-idle: 1
+        max-active: 20
+        validation-query: SELECT 1
+        test-while-idle: true
+      datasource:
+        master:
+          driver-class-name: org.postgresql.Driver
+          url: ${ZS_PG_URL:}
+          username: ${ZS_PG_USERNAME:}
+          password: ${ZS_PG_PASSWORD:}
+  data:
+    redis:
+      host: ${ZS_REDIS_HOST:}
+      port: ${ZS_REDIS_PORT:6379}
+      database: ${ZS_REDIS_DATABASE:0}
+      password: ${ZS_REDIS_PASSWORD:}
+  sql:
+    init:
+      mode: never
+  # Explicit opt-in only; use a separate schema owner, never the runtime account.
+  flyway:
+    enabled: ${ZS_DB_MIGRATE:false}
+    url: ${ZS_PG_URL:}
+    user: ${ZS_PG_MIGRATION_USERNAME:}
+    password: ${ZS_PG_MIGRATION_PASSWORD:}
+    locations: classpath:db/migration/postgresql
+    default-schema: ${ZS_PG_SCHEMA:public}
+    schemas: ${ZS_PG_SCHEMA:public}
+    create-schemas: false
+    baseline-on-migrate: false
+    clean-disabled: true
+    validate-on-migrate: true
+    out-of-order: false
+  quartz:
+    auto-startup: ${ZS_QUARTZ_ENABLED:false}
+    scheduler-name: zhongshu
+    job-store-type: jdbc
+    jdbc:
+      initialize-schema: never
+    properties:
+      org.quartz.jobStore.driverDelegateClass: org.quartz.impl.jdbcjobstore.PostgreSQLDelegate
+      org.quartz.jobStore.isClustered: true
+      org.quartz.scheduler.instanceId: AUTO
+  boot:
+    admin:
+      context-path: /admin
+      client:
+        enabled: false
+mybatis-plus:
+  global-config:
+    db-config:
+      id-type: INPUT
+      logic-delete-value: 'true'
+      logic-not-delete-value: 'false'
+  encryptor:
+    password: ${ZS_APPLICATION_MYBATIS_PLUS_ENCRYPTOR_PASSWORD:}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+# The upstream non-prod interceptor logs raw bodies. Keep sanitized persisted logs,
+# but never print login passwords or tokens through that console logger.
+logging:
+  file:
+    name: ${ZS_LOG_FILE:${java.io.tmpdir}/zhongshu-server.log}
+  level:
+    cn.iocoder.yudao.framework.apilog.core.interceptor.ApiAccessLogInterceptor: WARN
+springdoc:
+  api-docs:
+    enabled: ${ZS_API_DOCS_ENABLED:false}
+  swagger-ui:
+    enabled: ${ZS_API_DOCS_ENABLED:false}
+knife4j:
+  enable: ${ZS_API_DOCS_ENABLED:false}
+flowable:
+  database-schema-update: false
+yudao:
+  security:
+    mock-enable: false
+  captcha:
+    enable: ${ZS_CAPTCHA_ENABLED:true}
+  access-log:
+    enable: true
+  demo: false
+  web:
+    admin-ui:
+      url: ${ZS_ADMIN_UI_URL:http://localhost:80}
+  codegen:
+    db-schemas: ${ZS_PG_SCHEMA:public}
+  sms-code:
+    begin-code: 1000
+    end-code: 9999
+justauth:
+  enabled: false
+wx:
+  mp:
+    app-id: ${ZS_WX_MP_APP_ID:}
+    secret: ${ZS_WX_MP_SECRET:}
+    config-storage:
+      type: RedisTemplate
+      key-prefix: zhongshu:wx
+      http-client-type: HttpComponents
+  miniapp:
+    appid: ${ZS_WX_MINIAPP_APP_ID:}
+    secret: ${ZS_WX_MINIAPP_SECRET:}
+    config-storage:
+      type: RedisTemplate
+      key-prefix: zhongshu:wa
+      http-client-type: HttpComponents
